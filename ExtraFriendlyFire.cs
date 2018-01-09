@@ -36,9 +36,18 @@ namespace ExtraConcentratedJuice.ExtraFriendlyFire
 
             if (victim == null || attacker == null)
                 return;
-            if (victim.IsAdmin || victim.HasPermission(Configuration.Instance.ignorePermissionString))
+
+            // UnturnedPlayer.HasPermission() will always return true if the player is an admin.
+            // We don't want that if ignoreAdmin is set to false.
+            // To get around that, we are going to get all permissions of a player and check them in place of HasPermission().
+            List<Permission> victimPerms = victim.GetPermissions();
+            List<Permission> attackerPerms = attacker.GetPermissions();
+
+            string ignoreString = Configuration.Instance.ignorePermissionString;
+
+            if ((victim.IsAdmin && Configuration.Instance.ignoreAdmin) || victimPerms.Any(x => x.Name == ignoreString))
                 return;
-            if (attacker.IsAdmin || attacker.HasPermission(Configuration.Instance.ignorePermissionString))
+            if ((attacker.IsAdmin && Configuration.Instance.ignoreAdmin) || attackerPerms.Any(x => x.Name == ignoreString))
                 return;
 
             List<RocketPermissionsGroup> mutualGroups = GetMutualGroups(victim, attacker);
@@ -52,7 +61,7 @@ namespace ExtraConcentratedJuice.ExtraFriendlyFire
                     canDamage = false;
                     return;
                 }
-            }            
+            }
         }
 
         public static List<RocketPermissionsGroup> GetMutualGroups(UnturnedPlayer p1, UnturnedPlayer p2)
