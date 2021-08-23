@@ -1,73 +1,70 @@
-﻿using Rocket.API;
-using Rocket.API.Serialisation;
+﻿using Rocket.API.Serialisation;
+using Rocket.Core;
 using Rocket.Core.Plugins;
 using Rocket.Unturned.Player;
 using SDG.Unturned;
-using Steamworks;
 using System.Collections.Generic;
 using System.Linq;
-using UnityEngine;
 using Logger = Rocket.Core.Logging.Logger;
 
-namespace ExtraConcentratedJuice.ExtraFriendlyFire
+namespace MQS.ExtraFriendlyFire
 {
-    class ExtraFriendlyFire : RocketPlugin<ExtraFriendlyFireConfig>
+    public class MQSPlugin : RocketPlugin<ExtraFriendlyFireConfig>
     {
+        public static MQSPlugin Instance;
+
         protected override void Load()
         {
-            Logger.Log("ExtraFriendlyFire Loaded!");
-            Logger.Log("Groups that will ignore damage from same group: ");
-            foreach (string g in Configuration.Instance.groups)
-                Logger.Log("\t" + g);
-            Logger.Log("Plugin ignores admins: " + Configuration.Instance.ignoreAdmin);
-            Logger.Log("Plugin ignores players w/ permission: " + Configuration.Instance.ignorePermissionString);
-            DamageTool.playerDamaged += OnPlayerDamage;
-        }
-        protected override void Unload()
-        {
-            Logger.Log("Unloading ExtraFriendlyFire...");
-            DamageTool.playerDamaged -= OnPlayerDamage;
+            Instance = this;
+
+            Logger.LogWarning("++++++++++++++++++++++++++++++++++++++");
+            Logger.LogWarning($"[{Name}] loaded! ");
+            Logger.LogWarning("Dev: ExtraFriendlyJuice");
+            Logger.LogWarning("Updated by: 404mqs");
+            Logger.LogWarning("https://discord.gg/Ssbpd9cvgp");
+            Logger.LogWarning("++++++++++++++++++++++++++++++++++++++");
+
+            DamageTool.damagePlayerRequested += OnPlayerDamage;
         }
 
-        private void OnPlayerDamage(Player player, ref EDeathCause cause, ref ELimb limb, ref CSteamID killer, ref Vector3 direction, ref float damage, ref float times, ref bool canDamage)
+        private void OnPlayerDamage(ref DamagePlayerParameters parameters, ref bool shouldAllow)
         {
-            UnturnedPlayer victim = UnturnedPlayer.FromPlayer(player);
-            UnturnedPlayer attacker = UnturnedPlayer.FromCSteamID(killer);
+            UnturnedPlayer killer = UnturnedPlayer.FromCSteamID(parameters.killer);
+            UnturnedPlayer player = UnturnedPlayer.FromPlayer(parameters.player);
 
-            if (victim == null || attacker == null)
-                return;
-
-            // UnturnedPlayer.HasPermission() will always return true if the player is an admin.
-            // We don't want that if ignoreAdmin is set to false.
-            // To get around that, we are going to get all permissions of a player and check them in place of HasPermission().
-            List<Permission> victimPerms = victim.GetPermissions();
-            List<Permission> attackerPerms = attacker.GetPermissions();
-
-            string ignoreString = Configuration.Instance.ignorePermissionString;
-
-            if ((victim.IsAdmin && Configuration.Instance.ignoreAdmin) || victimPerms.Any(x => x.Name == ignoreString))
-                return;
-            if ((attacker.IsAdmin && Configuration.Instance.ignoreAdmin) || attackerPerms.Any(x => x.Name == ignoreString))
-                return;
-
-            List<RocketPermissionsGroup> mutualGroups = GetMutualGroups(victim, attacker);
-            List<string> ffGroups = Configuration.Instance.groups;
-
-            for (int i = 0; i < mutualGroups.Count; i++)
+            if (player.IsAdmin && Configuration.Instance.IgnoreAdmins)
             {
-                if (ffGroups.Contains(mutualGroups[i].Id))
+                return;
+            }
+
+            if (killer.IsAdmin && Configuration.Instance.IgnoreAdmins)
+            {
+                return;
+            }
+
+            List<RocketPermissionsGroup> MutualGroups = GetMutualGroups(killer, player);
+            List<string> Groups = Configuration.Instance.Groups;
+
+            for (int i = 0; i < MutualGroups.Count; i++)
+            {
+                if (Groups.Contains(MutualGroups[i].Id))
                 {
-                    damage = 0;
-                    canDamage = false;
-                    return;
+                    shouldAllow = false;
                 }
             }
         }
 
+        protected override void Unload()
+        {
+            Logger.LogWarning("++++++++++++++++++++++++++++++++++++++");
+            Logger.LogWarning($"[{Name}] unloaded! ");
+            Logger.LogWarning("++++++++++++++++++++++++++++++++++++++");
+        }
+
         public static List<RocketPermissionsGroup> GetMutualGroups(UnturnedPlayer p1, UnturnedPlayer p2)
         {
-            List<RocketPermissionsGroup> p1Groups = Rocket.Core.R.Permissions.GetGroups(p1, true);
-            List<RocketPermissionsGroup> p2Groups = Rocket.Core.R.Permissions.GetGroups(p2, true);
+            List<RocketPermissionsGroup> p1Groups = R.Permissions.GetGroups(p1, true);
+            List<RocketPermissionsGroup> p2Groups = R.Permissions.GetGroups(p2, true);
 
             return p1Groups.Intersect(p2Groups).ToList();
         }
